@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TicketType {
+  bug
+  feature
+  fix
+}
+
+enum TicketState {
+  new
+  ready_for_implementation
+  in_progress
+  ready_for_acceptance
+  done
+}
+
+model User {
+  id                String   @id @default(uuid())
+
+  email             String   @unique @db.VarChar(320)
+  passwordHash      String
+
+  name              String?
+
+  isEmailVerified   Boolean  @default(false)
+  verifiedAt        DateTime?
+
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  createdTickets            Ticket[]
+  teamMemberships           TeamMember[]
+  refreshTokens             RefreshToken[]
+  emailVerificationTokens   EmailVerificationToken[]
+
+  @@index([email])
+}
+
+model Team {
+  id          String   @id @default(uuid())
+
+  name        String
+
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  members     TeamMember[]
+  epics       Epic[]
+  tickets     Ticket[]
+}
+
+model TeamMember {
+  id          String   @id @default(uuid())
+
+  userId      String
+  teamId      String
+
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+
+  @@index([userId])
+  @@index([teamId])
+}
+
+model Epic {
+  id          String   @id @default(uuid())
+
+  title       String
+  description String?
+
+  teamId      String
+
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  team         Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+
+  @@index([teamId])
+}
+
+model Ticket {
+  id          String       @id @default(uuid())
+
+  teamId      String
+  epicId      String?
+
+  createdById String
+
+  type        TicketType
+  state       TicketState @default(new)
+
+  title       String
+  body        String
+
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  epic        Epic? @relation(fields: [epicId], references: [id], onDelete: SetNull)
+
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([teamId])
+  @@index([epicId])
+  @@index([createdById])
+
+  @@index([state])
+  @@index([type])
+
+  @@index([teamId, state])
+  @@index([teamId, createdAt])
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+
+  tokenHash   String
+
+  userAgent   String?
+  ipAddress   String?
+
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt   DateTime @db.Timestamptz(6)
+  revokedAt   DateTime? @db.Timestamptz(6)
+  lastUsedAt  DateTime? @db.Timestamptz(6)
+
+  userId      String
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id          String   @id @default(uuid())
+
+  tokenHash   String
+
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  expiresAt   DateTime @db.Timestamptz(6)
+  usedAt      DateTime? @db.Timestamptz(6)
+
+  userId      String
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
