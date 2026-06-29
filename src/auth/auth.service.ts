@@ -37,10 +37,17 @@ export class AuthService {
       name: registerDto.name,
     });
 
-    await this.createAndSendVerificationToken(user.id, user.email);
+    this.createAndSendVerificationToken(user.id, user.email).catch(() => {
+      // Silently ignore email sending errors
+    });
 
     const { passwordHash: _, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const tokens = await this.generateTokens(user);
+
+    return {
+      ...tokens,
+      user: userWithoutPassword,
+    };
   }
 
   async validateUser(email: string, password: string) {
@@ -49,10 +56,10 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id };
+    const tokens = await this.generateTokens(user);
 
     return {
-      access_token: this.jwtService.sign(payload),
+      ...tokens,
       user: {
         id: user.id,
         email: user.email,
@@ -62,8 +69,33 @@ export class AuthService {
     };
   }
 
+  private async generateTokens(user: any) {
+    const payload = { email: user.email, sub: user.id };
+
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = randomBytes(32).toString('hex');
+    // Use fixed salt for token hashing to enable lookup
+    const refreshTokenHash = await argon2.hash(refreshToken, { salt: Buffer.from('fixed-salt-for-refresh-tokens') });
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: refreshTokenHash,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    };
+  }
+
   async verifyEmail(token: string) {
-    const tokenHash = await argon2.hash(token);
+    // Use the same fixed salt for lookup
+    const tokenHash = await argon2.hash(token, { salt: Buffer.from('fixed-salt-for-verification-tokens') });
 
     const verificationToken =
       await this.prisma.emailVerificationToken.findFirst({
@@ -119,7 +151,8 @@ export class AuthService {
 
   private async createAndSendVerificationToken(userId: string, email: string) {
     const token = randomBytes(32).toString('hex');
-    const tokenHash = await argon2.hash(token);
+    // Use fixed salt for token hashing to enable lookup
+    const tokenHash = await argon2.hash(token, { salt: Buffer.from('fixed-salt-for-verification-tokens') });
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
@@ -144,5 +177,69 @@ export class AuthService {
         usedAt: new Date(),
       },
     });
+  }
+
+  async refreshTokens(refreshToken: string) {
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
+    // Use the same fixed salt for lookup
+    const refreshTokenHash = await argon2.hash(refreshToken, { salt: Buffer.from('fixed-salt-for-refresh-tokens') });
+
+    const storedToken = await this.prisma.refreshToken.findFirst({
+      where: {
+        tokenHash: refreshTokenHash,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!storedToken) {
+      // Check if token exists but is expired or revoked
+      const anyToken = await this.prisma.refreshToken.findFirst({
+        where: {
+          tokenHash: refreshTokenHash,
+        },
+      });
+
+      if (!anyToken) {
+        throw new BadRequestException('Invalid refresh token - not found in database');
+      }
+
+      if (anyToken.revokedAt) {
+        throw new BadRequestException('Refresh token has been revoked');
+      }
+
+      if (anyToken.expiresAt <= new Date()) {
+        throw new BadRequestException('Refresh token has expired');
+      }
+
+      throw new BadRequestException('Invalid or expired refresh token');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: {
+        lastUsedAt: new Date(),
+      },
+    });
+
+    const payload = { email: storedToken.user.email, sub: storedToken.user.id };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: storedToken.user.id,
+        email: storedToken.user.email,
+        name: storedToken.user.name,
+        isEmailVerified: storedToken.user.isEmailVerified,
+      },
+    };
   }
 }

@@ -1,13 +1,22 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Get,
+  Query,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
   register(@Body() registerDto: RegisterDto) {
@@ -28,6 +37,11 @@ export class AuthController {
   @Post('resend-verification')
   resendVerificationEmail(@Body() body: { email: string }) {
     return this.authService.resendVerificationEmail(body.email);
+  }
+
+  @Post('refresh')
+  refresh(@Body() refreshDto: RefreshDto) {
+    return this.authService.refreshTokens(refreshDto.refresh_token);
   }
 
   @UseGuards(JwtAuthGuard)

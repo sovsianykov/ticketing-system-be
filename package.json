@@ -8,9 +8,13 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prestart": "lsof -ti:8080 | xargs kill -9 2>/dev/null || true",
     "start": "nest start",
+    "prestart:dev": "lsof -ti:8080 | xargs kill -9 2>/dev/null || true",
     "start:dev": "nest start --watch",
+    "prestart:debug": "lsof -ti:8080 | xargs kill -9 2>/dev/null || true",
     "start:debug": "nest start --debug --watch",
+    "prestart:prod": "lsof -ti:8080 | xargs kill -9 2>/dev/null || true",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",

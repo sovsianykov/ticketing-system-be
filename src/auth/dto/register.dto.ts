@@ -3,7 +3,10 @@ import { Transform } from 'class-transformer';
 
 export class RegisterDto {
   @IsEmail({}, { message: 'Invalid email format' })
-  @Transform(({ value }) => value?.toLowerCase()?.trim())
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value;
+    return value.toLowerCase().trim();
+  })
   email: string;
 
   @IsString()
