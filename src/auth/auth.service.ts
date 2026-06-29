@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserWithoutPassword, JwtPayload } from '../common/types/user.types';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 
@@ -55,7 +56,7 @@ export class AuthService {
     return user;
   }
 
-  async login(user: any) {
+  async login(user: UserWithoutPassword) {
     const tokens = await this.generateTokens(user);
 
     return {
@@ -69,7 +70,7 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(user: any) {
+  private async generateTokens(user: UserWithoutPassword) {
     const payload = { email: user.email, sub: user.id };
 
     const accessToken = this.jwtService.sign(payload);

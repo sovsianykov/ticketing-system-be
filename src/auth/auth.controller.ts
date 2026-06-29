@@ -13,6 +13,11 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import type { UserWithoutPassword } from '../common/types/user.types';
+
+interface RequestWithUser extends Request {
+  user: UserWithoutPassword;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -25,7 +30,7 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Request() req) {
+  async login(@Request() req: RequestWithUser) {
     return this.authService.login(req.user);
   }
 
@@ -46,7 +51,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Request() req) {
+  getProfile(@Request() req: RequestWithUser): UserWithoutPassword {
     return req.user;
   }
 }
