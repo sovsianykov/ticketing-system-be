@@ -54,4 +54,13 @@ export class AuthController {
   getProfile(@Request() req: RequestWithUser): UserWithoutPassword {
     return req.user;
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  logout(
+    @Request() req: RequestWithUser,
+    @Body() body?: { refresh_token?: string },
+  ) {
+    return this.authService.logout(req.user.id, body?.refresh_token);
+  }
 }

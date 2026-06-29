@@ -243,4 +243,35 @@ export class AuthService {
       },
     };
   }
+
+  async logout(userId: string, refreshToken?: string) {
+    if (refreshToken) {
+      // Revoke specific refresh token
+      const refreshTokenHash = await argon2.hash(refreshToken, { salt: Buffer.from('fixed-salt-for-refresh-tokens') });
+      
+      await this.prisma.refreshToken.updateMany({
+        where: {
+          tokenHash: refreshTokenHash,
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+    } else {
+      // Revoke all refresh tokens for the user
+      await this.prisma.refreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+    }
+
+    return { message: 'Logged out successfully' };
+  }
 }
