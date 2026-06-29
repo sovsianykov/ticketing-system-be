@@ -6,6 +6,7 @@ import {
   Request,
   Get,
   Query,
+  Delete,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -62,5 +63,11 @@ export class AuthController {
     @Body() body?: { refresh_token?: string },
   ) {
     return this.authService.logout(req.user.id, body?.refresh_token);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('delete')
+  deleteUser(@Request() req: RequestWithUser) {
+    return this.authService.deleteUser(req.user.id);
   }
 }

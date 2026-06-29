@@ -274,4 +274,24 @@ export class AuthService {
 
     return { message: 'Logged out successfully' };
   }
+
+  async deleteUser(userId: string) {
+    // Check if user has created tickets (which have onDelete: Restrict)
+    const ticketCount = await this.prisma.ticket.count({
+      where: { createdById: userId },
+    });
+
+    if (ticketCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete user account with existing tickets. Please reassign or delete tickets first.',
+      );
+    }
+
+    // Delete user (cascade will handle related records)
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+
+    return { message: 'User account deleted successfully' };
+  }
 }
