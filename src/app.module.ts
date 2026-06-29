@@ -7,6 +7,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { EmailModule } from './email/email.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { TeamsModule } from './teams/teams.module';
+import { CommentsModule } from './comments/comments.module';
 
 @Module({
   imports: [
@@ -17,6 +20,9 @@ import { EmailModule } from './email/email.module';
     UsersModule,
     AuthModule,
     EmailModule,
+    TicketsModule,
+    TeamsModule,
+    CommentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
