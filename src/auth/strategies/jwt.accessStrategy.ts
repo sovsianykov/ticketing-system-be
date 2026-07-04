@@ -3,26 +3,30 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
-import { JwtPayload, UserWithoutPassword } from '../../common/types/user.types';
+import { JwtPayload } from '../../common/types/user.types';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    private configService: ConfigService,
-    private usersService: UsersService,
+    configService: ConfigService,
+    private readonly usersService: UsersService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKey: configService.getOrThrow('JWT_ACCESS_SECRET'),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
     });
   }
 
-  async validate(payload: JwtPayload): Promise<UserWithoutPassword> {
+  async validate(payload: JwtPayload) {
     const user = await this.usersService.findById(payload.sub);
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException();
+    }
+
+    if (!user.isEmailVerified) {
+      throw new UnauthorizedException('Email not verified');
     }
 
     return user;

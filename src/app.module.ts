@@ -10,6 +10,7 @@ import { EmailModule } from './email/email.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { TeamsModule } from './teams/teams.module';
 import { CommentsModule } from './comments/comments.module';
+import { EpicsModule } from './epics/epics.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { CommentsModule } from './comments/comments.module';
     TicketsModule,
     TeamsModule,
     CommentsModule,
+    EpicsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

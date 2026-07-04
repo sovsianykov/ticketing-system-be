@@ -45,11 +45,11 @@ export class UsersService {
     return userWithoutPassword;
   }
 
-  async findByEmail(email: string): Promise<UserWithoutPassword> {
+  async findByEmail(email: string): Promise<UserWithoutPassword | null> {
     const user = await this.usersRepository.findByEmail(email);
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      return null;
     }
 
     const { passwordHash: _, ...userWithoutPassword } = user;

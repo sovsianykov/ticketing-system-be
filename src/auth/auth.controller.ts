@@ -1,73 +1,125 @@
 import {
-  Controller,
-  Post,
   Body,
-  UseGuards,
-  Request,
-  Get,
-  Query,
+  Controller,
   Delete,
+  Get,
+  Post,
+  Query,
+  Request,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
+
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
-import { RefreshDto } from './dto/refresh.dto';
+
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import type { UserWithoutPassword } from '../common/types/user.types';
+import { JwtRefreshAuthGuard } from './guards/jwt-refresh-auth.guard';
 
-interface RequestWithUser extends Request {
-  user: UserWithoutPassword;
-}
+import type { RequestWithUser } from '../common/types/user.types';
+
+const REFRESH_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Request() req: RequestWithUser) {
-    return this.authService.login(req.user);
+  async login(
+    @Request() req: RequestWithUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.login(
+      req.user,
+    );
+
+    this.setRefreshCookie(res, refreshToken);
+
+    return { accessToken };
   }
 
+  // Token arrives as a query param from the email link: /auth/verify-email?token=<hex>
   @Get('verify-email')
-  verifyEmail(@Query() verifyEmailDto: VerifyEmailDto) {
-    return this.authService.verifyEmail(verifyEmailDto.token);
+  verifyEmail(@Query('token') token: string) {
+    return this.authService.verifyEmail(token);
   }
 
   @Post('resend-verification')
-  resendVerificationEmail(@Body() body: { email: string }) {
-    return this.authService.resendVerificationEmail(body.email);
+  resendVerificationEmail(@Body('email') email: string) {
+    return this.authService.resendVerificationEmail(email);
   }
 
+  @UseGuards(JwtRefreshAuthGuard)
   @Post('refresh')
-  refresh(@Body() refreshDto: RefreshDto) {
-    return this.authService.refreshTokens(refreshDto.refresh_token);
+  async refresh(
+    @Request() req: RequestWithUser & { user: { rawRefreshToken: string } },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.refreshTokens(
+      req.user.id,
+      req.user.rawRefreshToken,
+    );
+
+    this.setRefreshCookie(res, refreshToken);
+
+    return { accessToken };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Request() req: RequestWithUser): UserWithoutPassword {
+  getProfile(@Request() req: RequestWithUser) {
     return req.user;
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
-  logout(
-    @Request() req: RequestWithUser,
-    @Body() body?: { refresh_token?: string },
+  async logout(
+    @Request() req: RequestWithUser & { user: { rawRefreshToken?: string } },
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.logout(req.user.id, body?.refresh_token);
+    await this.authService.logout(req.user.id, req.user.rawRefreshToken);
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return { message: 'Logged out successfully' };
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete('delete')
-  deleteUser(@Request() req: RequestWithUser) {
-    return this.authService.deleteUser(req.user.id);
+  async deleteUser(
+    @Request() req: RequestWithUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.deleteUser(req.user.id);
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return { message: 'User deleted' };
+  }
+
+  private setRefreshCookie(res: Response, token: string) {
+    res.cookie('refreshToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+      path: '/api/v1/auth',
+    });
   }
 }

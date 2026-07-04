@@ -110,7 +110,7 @@ model Ticket {
 
   team      Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
   epic      Epic? @relation(fields: [epicId], references: [id], onDelete: SetNull)
-  createdBy User  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy User  @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   comments TicketComment[]
 
