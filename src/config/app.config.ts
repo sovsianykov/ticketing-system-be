@@ -1,11 +1,13 @@
 import { registerAs } from '@nestjs/config';
 
 export const appConfig = registerAs('app', () => ({
-  url: process.env.APP_URL ?? 'http://localhost:8080',
+  url: process.env.APP_URL ?? 'https://ticketing-system-be.onrender.com/api/v1',
   port: parseInt(process.env.PORT ?? '8080', 10),
   isProduction: process.env.NODE_ENV === 'production',
-  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+  corsOrigin:
+    process.env.CORS_ORIGIN ?? 'https://ticketing-system-fe-phi.vercel.app',
+  frontendUrl:
+    process.env.FRONTEND_URL ?? 'https://ticketing-system-fe-phi.vercel.app',
 }));
 
 export const jwtConfig = registerAs('jwt', () => ({
