@@ -135,7 +135,7 @@ export class AuthController {
       secure: this.configService.get<boolean>('app.isProduction'),
       sameSite: 'lax',
       maxAge: REFRESH_COOKIE_MAX_AGE_MS,
-      path: '/api/v1/auth',
+      path: '/',
     });
   }
 }

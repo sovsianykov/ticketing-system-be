@@ -1,31 +1,20 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-custom';
 import { Request } from 'express';
-import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../../users/users.service';
-import { JwtPayload } from '../../common/types/user.types';
+import { PrismaService } from '../../prisma/prisma.service';
+import * as argon2 from 'argon2';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
-  constructor(
-    configService: ConfigService,
-    private readonly usersService: UsersService,
-  ) {
-    super({
-      jwtFromRequest: (req: Request) =>
-        (req.cookies as Record<string, string | undefined>)?.refreshToken ??
-        null,
-      secretOrKey: configService.getOrThrow('jwt.refreshSecret'),
-      passReqToCallback: true,
-      ignoreExpiration: false,
-    });
+  constructor(private readonly prisma: PrismaService) {
+    super();
   }
 
-  async validate(req: Request, payload: JwtPayload) {
+  async validate(req: Request) {
     const rawToken = (req.cookies as Record<string, string | undefined>)
       ?.refreshToken;
 
@@ -33,11 +22,28 @@ export class JwtRefreshStrategy extends PassportStrategy(
       throw new UnauthorizedException('Refresh token missing');
     }
 
-    const user = await this.usersService.findById(payload.sub);
+    const activeTokens = await this.prisma.refreshToken.findMany({
+      where: {
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: true },
+    });
 
-    if (!user) {
-      throw new UnauthorizedException();
+    let matched: (typeof activeTokens)[0] | null = null;
+    for (const token of activeTokens) {
+      if (await argon2.verify(token.tokenHash, rawToken)) {
+        matched = token;
+        break;
+      }
     }
+
+    if (!matched) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const { passwordHash, ...user } = matched.user;
+    void passwordHash;
 
     return { ...user, rawRefreshToken: rawToken };
   }
