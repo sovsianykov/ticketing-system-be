@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { appConfig, jwtConfig, smtpConfig, databaseConfig } from './config/app.config';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -17,6 +18,13 @@ import { EpicsModule } from './epics/epics.module';
       isGlobal: true,
       load: [appConfig, jwtConfig, smtpConfig, databaseConfig],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'register',
+        ttl: 60000,  // окно 1 минута (мс)
+        limit: 5,    // максимум 5 попыток
+      },
+    ]),
     PrismaModule,
     UsersModule,
     AuthModule,

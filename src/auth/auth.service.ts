@@ -150,7 +150,9 @@ export class AuthService {
   // =========================
   // EMAIL VERIFICATION
   // =========================
-  async verifyEmail(token: string): Promise<{ message: string }> {
+  async verifyEmail(
+    token: string,
+  ): Promise<{ accessToken: string; refreshToken: string; user: UserWithoutPassword }> {
     // Token is opaque (hashed in DB), so we must scan active tokens and verify each.
     // Volume is bounded: one active token per user at a time (resend invalidates prior tokens).
     const candidates = await this.prisma.emailVerificationToken.findMany({
@@ -183,7 +185,13 @@ export class AuthService {
       });
     });
 
-    return { message: 'Email verified successfully' };
+    const { passwordHash: _, ...user } = matched.user;
+    const verifiedUser: UserWithoutPassword = { ...user, isEmailVerified: true, verifiedAt: new Date() };
+
+    const accessToken = this.generateAccessToken(verifiedUser);
+    const refreshToken = await this.generateAndStoreRefreshToken(verifiedUser.id);
+
+    return { accessToken, refreshToken, user: verifiedUser };
   }
 
   // =========================

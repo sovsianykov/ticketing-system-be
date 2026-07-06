@@ -9,6 +9,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Response } from 'express';
 
 import { ConfigService } from '@nestjs/config';
@@ -30,6 +31,8 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {}
 
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ register: { ttl: 60000, limit: 5 } })
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -50,10 +53,19 @@ export class AuthController {
     return { accessToken };
   }
 
-  // Token arrives as a query param from the email link: /auth/verify-email?token=<hex>
-  @Get('verify-email')
-  verifyEmail(@Query('token') token: string) {
-    return this.authService.verifyEmail(token);
+  // Token arrives in the request body, sent by the frontend after the user clicks the email link.
+  // On success, sets the refresh token cookie and returns { accessToken, user } — mirroring login.
+  @Post('verify-email')
+  async verifyEmail(
+    @Body('token') token: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, refreshToken, user } =
+      await this.authService.verifyEmail(token);
+
+    this.setRefreshCookie(res, refreshToken);
+
+    return { accessToken, user };
   }
 
   @Post('resend-verification')

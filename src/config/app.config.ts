@@ -4,6 +4,8 @@ export const appConfig = registerAs('app', () => ({
   url: process.env.APP_URL ?? 'http://localhost:8080',
   port: parseInt(process.env.PORT ?? '8080', 10),
   isProduction: process.env.NODE_ENV === 'production',
+  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
 }));
 
 export const jwtConfig = registerAs('jwt', () => ({
