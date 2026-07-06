@@ -16,15 +16,18 @@ export class JwtRefreshStrategy extends PassportStrategy(
     private readonly usersService: UsersService,
   ) {
     super({
-      jwtFromRequest: (req: Request) => req.cookies?.refreshToken ?? null,
-      secretOrKey: configService.getOrThrow('JWT_REFRESH_SECRET'),
+      jwtFromRequest: (req: Request) =>
+        (req.cookies as Record<string, string | undefined>)?.refreshToken ??
+        null,
+      secretOrKey: configService.getOrThrow('jwt.refreshSecret'),
       passReqToCallback: true,
       ignoreExpiration: false,
     });
   }
 
   async validate(req: Request, payload: JwtPayload) {
-    const rawToken: string | undefined = req.cookies?.refreshToken;
+    const rawToken = (req.cookies as Record<string, string | undefined>)
+      ?.refreshToken;
 
     if (!rawToken) {
       throw new UnauthorizedException('Refresh token missing');

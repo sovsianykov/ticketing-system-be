@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { appConfig, jwtConfig, smtpConfig, databaseConfig } from './config/app.config';
 import { PrismaService } from './prisma/prisma.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
@@ -16,6 +15,7 @@ import { EpicsModule } from './epics/epics.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [appConfig, jwtConfig, smtpConfig, databaseConfig],
     }),
     PrismaModule,
     UsersModule,
@@ -26,7 +26,6 @@ import { EpicsModule } from './epics/epics.module';
     CommentsModule,
     EpicsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [PrismaService],
 })
 export class AppModule {}

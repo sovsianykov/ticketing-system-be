@@ -8,22 +8,22 @@ export class EmailService {
 
   constructor(private configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST', 'relay1.dataart.com'),
-      port: this.configService.get<number>('SMTP_PORT', 587),
+      host: this.configService.get<string>('smtp.host'),
+      port: this.configService.get<number>('smtp.port'),
       secure: false,
       auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASSWORD'),
+        user: this.configService.get<string>('smtp.user'),
+        pass: this.configService.get<string>('smtp.password'),
       },
     });
   }
 
   async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const appUrl = this.configService.get<string>('APP_URL', 'http://localhost:8080');
+    const appUrl = this.configService.getOrThrow<string>('app.url');
     const verificationUrl = `${appUrl}/api/v1/auth/verify-email?token=${token}`;
 
     await this.transporter.sendMail({
-      from: this.configService.get<string>('SMTP_FROM', 'no-reply@your-domain.com'),
+      from: this.configService.get<string>('smtp.from'),
       to: email,
       subject: 'Verify your email',
       html: `

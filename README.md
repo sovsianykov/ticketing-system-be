@@ -1,98 +1,209 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+/# Ticketing System — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS REST API for managing tickets, teams, epics, and comments. PostgreSQL via Prisma, JWT auth with HTTP-only cookie refresh tokens, Argon2 password hashing, and Nodemailer for email verification.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+| Layer | Technology |
+|---|---|
+| Framework | NestJS 11 + TypeScript |
+| Database | PostgreSQL (Prisma ORM 5) |
+| Auth | Passport.js — JWT (access + refresh) + Local strategy |
+| Email | Nodemailer (SMTP) |
+| Hashing | Argon2 |
+| Validation | class-validator + class-transformer |
+| Testing | Jest + Supertest |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL instance
+
+### Setup
 
 ```bash
-$ npm install
+npm install
+cp .env.example .env   # fill in values (see Environment Variables)
+npx prisma migrate dev --name init
+npm run start:dev
 ```
 
-## Compile and run the project
+API is available at `http://localhost:8080/api/v1`.
+
+> The `prestart` hooks automatically kill any process on port 8080 before starting.
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_ACCESS_SECRET` | Secret for signing short-lived access tokens |
+| `JWT_REFRESH_SECRET` | Secret for signing long-lived refresh tokens |
+| `SMTP_HOST` | SMTP server hostname |
+| `SMTP_PORT` | SMTP server port (typically `587`) |
+| `SMTP_USER` | SMTP authentication username |
+| `SMTP_PASSWORD` | SMTP authentication password |
+| `SMTP_FROM` | Sender address for outgoing emails |
+| `APP_URL` | Public base URL used in email links |
+
+---
+
+## Authentication Flow
+
+Access tokens are returned in the response body. Refresh tokens are set as an HTTP-only cookie scoped to `/api/v1/auth`.
+
+```
+POST   /api/v1/auth/register                      — create account, triggers verification email
+GET    /api/v1/auth/verify-email?token=<hex>      — activate account
+POST   /api/v1/auth/resend-verification           — resend verification email
+POST   /api/v1/auth/login                         — returns { accessToken }, sets refreshToken cookie
+POST   /api/v1/auth/refresh                       — rotates both tokens (requires refreshToken cookie)
+POST   /api/v1/auth/logout                        — revokes refresh token, clears cookie
+DELETE /api/v1/auth/delete                        — permanently deletes account
+GET    /api/v1/auth/profile                       — returns authenticated user (JWT required)
+```
+
+**Email verification is enforced at the strategy level** — a valid JWT for an unverified account returns `401`.
+
+Refresh tokens are hashed before storage and tracked with expiry, revocation, last-used, user-agent, and IP metadata in the `RefreshToken` table.
+
+---
+
+## API Reference
+
+All routes are prefixed with `/api/v1`. Routes marked 🔒 require `Authorization: Bearer <accessToken>`.
+
+### Users
+
+```
+GET    /users          — list all users
+POST   /users          — create user (direct, bypasses email verification)
+GET    /users/me    🔒 — current authenticated user
+GET    /users/:id   🔒 — get user by ID
+PATCH  /users/:id   🔒 — update user
+```
+
+### Teams
+
+```
+POST   /teams       — create team
+GET    /teams       — list all teams
+GET    /teams/:id   — get team by ID
+PATCH  /teams/:id   — update team
+DELETE /teams/:id   — delete team
+```
+
+### Tickets
+
+```
+POST   /tickets                        🔒 — create ticket
+GET    /tickets?teamId=&state=&type=   — list tickets (filterable)
+GET    /tickets/:id                    — get ticket
+PATCH  /tickets/:id                    — update ticket
+DELETE /tickets/:id                    — delete ticket
+```
+
+**Ticket state flow:** `new` → `ready_for_implementation` → `in_progress` → `ready_for_acceptance` → `done`
+
+**Ticket types:** `bug` | `feature` | `fix`
+
+### Epics
+
+```
+POST   /epics          🔒 — create epic
+GET    /epics?teamId=     — list epics (optional team filter)
+GET    /epics/:id         — get epic
+PATCH  /epics/:id      🔒 — update epic
+DELETE /epics/:id      🔒 — delete epic
+```
+
+### Comments
+
+```
+POST   /comments                   🔒 — create comment
+GET    /comments/ticket/:ticketId     — get all comments for a ticket
+GET    /comments/:id                  — get comment
+PATCH  /comments/:id               🔒 — update comment body
+DELETE /comments/:id               🔒 — delete comment
+```
+
+---
+
+## Data Model
+
+```
+User ──< TeamMember >── Team ──< Epic
+                          │
+                          └──< Ticket ──< TicketComment
+                                │
+                              (optional epicId → Epic)
+
+User ──< RefreshToken
+User ──< EmailVerificationToken
+```
+
+All primary keys are UUIDs. Cascading deletes propagate from `Team` and `User` downward.
+
+---
+
+## Project Structure
+
+```
+src/
+├── auth/
+│   ├── strategies/        # jwt.accessStrategy, jwt.refreshStrategy, local.strategy
+│   ├── guards/            # JwtAuthGuard, LocalAuthGuard, JwtRefreshAuthGuard
+│   └── dto/
+├── users/
+│   ├── users.repository.ts   # only module using the repository pattern
+│   └── dto/
+├── tickets/
+├── teams/
+├── epics/
+├── comments/
+├── email/                 # EmailService — wraps Nodemailer
+├── prisma/                # PrismaService (global module)
+└── common/
+    └── types/user.types.ts  # UserWithoutPassword, RequestWithUser
+```
+
+---
+
+## Development Commands
 
 ```bash
-# development
-$ npm run start
+npm run start:dev      # watch mode
+npm run start:debug    # watch + Node inspector
 
-# watch mode
-$ npm run start:dev
+npm run build          # compile to dist/
+npm run lint           # ESLint --fix
+npm run format         # Prettier
 
-# production mode
-$ npm run start:prod
+npm test               # unit tests
+npm run test:watch     # unit tests in watch mode
+npm run test:cov       # coverage report → coverage/
+npm run test:e2e       # end-to-end tests
+
+npx prisma migrate dev --name <name>   # create + apply migration
+npx prisma studio                      # database GUI
 ```
 
-## Run tests
+Run a single test file:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npx jest src/auth/auth.service.spec.ts
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Known Limitations
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- CORS origin is hardcoded to `http://localhost:3000` in `main.ts` — externalize to an env var before deploying to staging/production.
+- The repository pattern is only applied in `users/`; other modules call Prisma directly from the service layer.
+- Test coverage is sparse — run `npm run test:cov` to measure current state.

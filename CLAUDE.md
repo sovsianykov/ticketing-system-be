@@ -34,12 +34,13 @@ The project follows NestJS module-based architecture with feature modules:
 
 ### Key Patterns
 
-**Repository Pattern:** Services use repository classes (e.g., `users.repository.ts`) to handle data access, not direct Prisma calls in service business logic.
+**Repository Pattern:** Only `users/` currently uses a repository class (`users.repository.ts`) for data access. Other modules call Prisma directly in their service. New modules should follow the repository pattern.
 
 **Guards & Strategies:** 
-- `jwt-auth.guard` and `local-auth.guard` protect routes
+- `JwtAuthGuard`, `LocalAuthGuard`, and `JwtRefreshAuthGuard` protect routes
 - JWT split into `jwt.accessStrategy.ts` and `jwt.refreshStrategy.ts` for access + refresh token flows
-- Old strategies (`jwt.strategy.ts`, `local.strategy.ts`) have been removed in favor of the split approach
+- Refresh tokens are passed via HTTP-only cookies (parsed by `cookieParser` middleware)
+- `JwtAccessStrategy` enforces email verification — unverified users get `UnauthorizedException` even with a valid token
 
 **DTOs:** Input validation uses `class-validator` and `class-transformer` decorators on DTO classes.
 
@@ -98,8 +99,8 @@ cp .env.example .env
 
 **Required Variables:**
 - `DATABASE_URL` — PostgreSQL connection string (Prisma)
-- `JWT_SECRET` — Secret key for signing JWTs
-- `JWT_EXPIRES_IN` — JWT expiry (e.g., `1d`, `24h`)
+- `JWT_ACCESS_SECRET` — Secret for signing access tokens
+- `JWT_REFRESH_SECRET` — Secret for signing refresh tokens
 - `SMTP_*` — Email server credentials for verification and notifications
 - `APP_URL` — Application URL for email links
 
@@ -121,7 +122,7 @@ npx prisma db push                               # Push schema changes (dev only
 - Throw specific NestJS exceptions (`ConflictException`, `NotFoundException`, `UnauthorizedException`)
 
 **Controllers:**
-- Use `@UseGuards(JwtAuthGuard)` or `@UseGuards(LocalAuthGuard)` on protected routes
+- Use `@UseGuards(JwtAuthGuard)`, `@UseGuards(LocalAuthGuard)`, or `@UseGuards(JwtRefreshAuthGuard)` on protected routes
 - DTOs automatically validate request bodies via `ValidationPipe`
 - Extract user from request via `@Req() request` and `request.user`
 
@@ -129,14 +130,7 @@ npx prisma db push                               # Push schema changes (dev only
 - NestJS exceptions are automatically converted to HTTP responses
 - Use meaningful exception types and messages
 
-## Current Development Status
+## Notes
 
-- **In-progress branch:** `tickets-1` (visible in git status)
-- Recent work: Comment management on team tickets, auth refactor (JWT strategies split), delete user method
-- Email verification and refresh token tracking are implemented
-
-## Notes for Future Work
-
-- JWT strategy refactor is incomplete in `auth.module.ts` — references removed strategies. Update imports if strategy names change.
 - Test coverage is minimal; expand with `npm run test:cov`
-- CORS is hardcoded to `http://localhost:3000` — externalize to env var for staging/prod
+- CORS is hardcoded to `http://localhost:3000` in `main.ts` — externalize to env var for staging/prod

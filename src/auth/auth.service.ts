@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,7 +20,6 @@ const EMAIL_TOKEN_TTL_HOURS = 24;
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
@@ -61,10 +59,8 @@ export class AuthService {
   async login(
     user: UserWithoutPassword,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const [accessToken, refreshToken] = await Promise.all([
-      this.generateAccessToken(user),
-      this.generateAndStoreRefreshToken(user.id),
-    ]);
+    const accessToken = this.generateAccessToken(user);
+    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
 
     return { accessToken, refreshToken };
   }
@@ -106,12 +102,11 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    const { passwordHash: _, ...user } = storedToken.user;
+    const { passwordHash, ...user } = storedToken.user;
+    void passwordHash;
 
-    const [accessToken, refreshToken] = await Promise.all([
-      this.generateAccessToken(user),
-      this.generateAndStoreRefreshToken(userId),
-    ]);
+    const accessToken = this.generateAccessToken(user);
+    const refreshToken = await this.generateAndStoreRefreshToken(userId);
 
     return { accessToken, refreshToken };
   }
@@ -176,16 +171,17 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired verification token');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.emailVerificationToken.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.emailVerificationToken.update({
         where: { id: matched.id },
         data: { usedAt: new Date() },
-      }),
-      this.prisma.user.update({
+      });
+
+      await tx.user.update({
         where: { id: matched.user.id },
         data: { isEmailVerified: true, verifiedAt: new Date() },
-      }),
-    ]);
+      });
+    });
 
     return { message: 'Email verified successfully' };
   }
@@ -243,7 +239,7 @@ export class AuthService {
     return this.jwtService.sign(
       { sub: user.id, email: user.email },
       {
-        secret: this.configService.getOrThrow('JWT_ACCESS_SECRET'),
+        secret: this.configService.getOrThrow('jwt.accessSecret'),
         expiresIn: '15m',
       },
     );
